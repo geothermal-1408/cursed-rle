@@ -2,3 +2,4 @@
 *.rle
 progess.md
 bin/
+.DS_Store
