@@ -27,4 +27,6 @@ int _file_is_writable(const char *path);
 
 int _is_valid_bmp(const char *path);
 
+int _open_file_picker(char *out_path, int out_size, const char *file_type);
+
 #endif

@@ -30,6 +30,31 @@ int _is_valid_bmp(const char *path)
   return (magic[0] == 'B' && magic[1] == 'M');
 }
 
+/* right now file picker has been implemeted using AppleScript.
+   So, it's only supports macOS. In future, need to add custom ncurses
+   based file browser.
+*/
+int _open_file_picker(char *out_path, int out_size, const char *file_type)
+{
+  char script[512];
+  snprintf(script, sizeof(script),
+	   "osascript -e 'POSIX path of (choose file of type {\"%s\"} "
+	   "with prompt \"Select a %s file\")' 2>/dev/null",
+	   file_type, file_type);
+
+  FILE *fp = popen(script, "r");
+  if(!fp) return -1;
+
+  if(fgets(out_path, out_size, fp) == NULL) {
+    pclose(fp);
+    return -1;
+  }
+
+  out_path[strcspn(out_path, "\n")] = '\0';
+  pclose(fp);
+  return 0;
+}
+
 int rle_write_file(const char *output,
 		   int width,int height, int channels,
 		   const unsigned char *enc_data,

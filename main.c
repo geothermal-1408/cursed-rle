@@ -101,15 +101,26 @@ void handle_compress_screen(void)
 
   clear();
   mvprintw(2, 4, "COMPRESS IMAGE");
-  mvprintw(4, 4, "enter BMP file path: "); // TODO: add file browser
-  move(5,4);
+  mvprintw(4, 4, "Opening file picker...");
+  refresh();
+  endwin();
 
-  echo();
-  curs_set(1);
-  getnstr(input_path, 511);
+  int picked = _open_file_picker(input_path, sizeof(input_path), "bmp");
+  refresh();
+  initscr();
+  cbreak();
   noecho();
-  curs_set(0);
+  keypad(stdscr, TRUE);
 
+  if(picked != 0) {
+    mvprintw(7, 4, "No file selected");
+    mvprintw(9, 4, "Press any key to return");
+    getch();
+    return;
+  }
+  mvprintw(6, 4, "Selected: %s", input_path);
+  refresh();
+  
   if(!_file_exists(input_path)) {
     mvprintw(7, 4, "Error: file does not exist.");
     mvprintw(8, 4, "Path : %s", input_path);
@@ -183,15 +194,27 @@ void handle_decompress_screen(void)
 
   clear();
   mvprintw(2, 4, "DECOMPRESS IMAGE");
-  mvprintw(4, 4, "enter .rle file path: "); // TODO: add file browser
-  move(5,4);
+  mvprintw(4, 4, "Opening file picker...");
+  refresh();
+  endwin();
 
-  echo();
-  curs_set(1);
-  getnstr(input_path, 511);
+  int picked = _open_file_picker(input_path, sizeof(input_path), "rle");
+  refresh();
+  initscr();
+  cbreak();
   noecho();
-  curs_set(0);
+  keypad(stdscr, TRUE);
 
+  if(picked != 0) {
+    mvprintw(7, 4, "No file selected");
+    mvprintw(9, 4, "Press any key to return");
+    getch();
+    return;
+  }
+  mvprintw(6, 4, "Selected: %s", input_path);
+  refresh();
+ 
+ 
   if (!_file_exists(input_path)) {
     mvprintw(7, 4, "Error: file does not exist.");
     mvprintw(8, 4, "Path : %s", input_path);
