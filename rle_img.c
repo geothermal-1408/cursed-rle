@@ -31,6 +31,20 @@ int _is_valid_bmp(const char *path)
   return (magic[0] == 'B' && magic[1] == 'M');
 }
 
+static int join_path(char *dst, size_t dst_size, const char *base, const char *name)
+{
+  size_t base_len = strlen(base);
+  size_t name_len = strlen(name);
+  size_t need = base_len + 1 + name_len + 1;
+
+  if(need > dst_size) return -1;
+
+  memcpy(dst, base, base_len);
+  dst[base_len] = '/';
+  memcpy(dst + base_len + 1, name, name_len + 1);
+  return 0;
+}
+
 void _ncurses_file_browser(char *out_path, int out_size)
 {
   char cwd[512];
@@ -59,8 +73,10 @@ void _ncurses_file_browser(char *out_path, int out_size)
 
     for(int i = 0; i < n_entries; ++i) {
       char full[1024];
-      snprintf(full, sizeof(full), "%s/%s", cwd, entries[i]);
-
+      if(join_path(full, sizeof(full), cwd, entries[i]) != 0) {
+        continue;
+      }
+      
       struct stat st;
       stat(full, &st);
       int is_dir = S_ISDIR(st.st_mode);
@@ -88,7 +104,9 @@ void _ncurses_file_browser(char *out_path, int out_size)
           break;
         case 10: {
           char selected[1024];
-	  snprintf(selected, sizeof(selected), "%s/%s",cwd, entries[highlight]);
+	  if(_join_path(selected, sizeof(selected), cwd, entries[highlight]) != 0) {
+	    break;
+	  }
 	  struct stat st;
 	  stat(selected, &st);
 	  if(S_ISDIR(st.st_mode)) {
