@@ -1,14 +1,15 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
 #include <sys/stat.h>
-#include "rle_img.h"
+#include <dirent.h>
+
 #include "rle_format.h"
+
+#include "common.h"
 
 int _file_exists(const char *path)
 {
-  struct stat st;
-  return (stat(path, &st) == 0);
+  struct stat ft;
+  return (stat(path, &ft) == 0);
 }
 
 int _file_is_writable(const char *path)
@@ -30,12 +31,87 @@ int _is_valid_bmp(const char *path)
   return (magic[0] == 'B' && magic[1] == 'M');
 }
 
+void _ncurses_file_browser(char *out_path, int out_size)
+{
+  char cwd[512];
+  getcwd(cwd, sizeof(cwd));
+  char entries[256][512];
+  int n_entries = 0;
+  int highlight = 0;
+
+  while(1) {
+    n_entries = 0;
+    DIR *dir = opendir(cwd);
+    struct dirent *dp;
+
+    snprintf(entries[n_entries++], 512, "..");
+    while((dp = readdir(dir)) != NULL && n_entries < 256) {
+      if(dp->d_name[0] == '.') continue;
+      snprintf(entries[n_entries++], 512, "%s", dp->d_name);
+    }
+    closedir(dir);
+
+    clear();
+    mvprintw(1, 2, "FILE BROWSER");
+    mvprintw(2, 2, "Locations: %s", cwd);
+    mvprintw(3, 2,"====================");
+    mvprintw(3 + n_entries + 2, 2, "ENTER=select q=cancel");
+
+    for(int i = 0; i < n_entries; ++i) {
+      char full[1024];
+      snprintf(full, sizeof(full), "%s/%s", cwd, entries[i]);
+
+      struct stat st;
+      stat(full, &st);
+      int is_dir = S_ISDIR(st.st_mode);
+
+      if(i == highlight) attron(COLOR_PAIR(4) | A_BOLD);
+      else attron(A_NORMAL);
+
+      mvprintw(4 + i, 4, "%s%s", entries[i], is_dir ? "/" : "");
+      attroff(COLOR_PAIR(4) | A_BOLD);
+    }
+    refresh();
+    int c = getch();
+    switch(c){
+        case KEY_UP:
+          highlight--;
+          if (highlight < 0) highlight = 0;
+          break;
+        case KEY_DOWN:
+          highlight++;
+          if (highlight >= n_entries) highlight = n_entries - 1;
+          break;
+        case 'q':
+          out_path[0] = '\0';
+          return;
+          break;
+        case 10: {
+          char selected[1024];
+	  snprintf(selected, sizeof(selected), "%s/%s",cwd, entries[highlight]);
+	  struct stat st;
+	  stat(selected, &st);
+	  if(S_ISDIR(st.st_mode)) {
+	    snprintf(cwd, sizeof(cwd), "%s", selected);
+	    highlight  = 0;
+	  } else {
+	    snprintf(out_path, out_size, "%s", selected);
+	    return;
+	  }
+	  break;
+        }
+    }
+  }
+}
+
 /* right now file picker has been implemeted using AppleScript.
    So, it's only supports macOS. In future, need to add custom ncurses
    based file browser.
 */
 int _open_file_picker(char *out_path, int out_size, const char *file_type)
 {
+  #if defined (__APPLE__) && defined (__MACH__)
+  
   char script[512];
   snprintf(script, sizeof(script),
 	   "osascript -e 'POSIX path of (choose file of type {\"%s\"} "
@@ -53,6 +129,35 @@ int _open_file_picker(char *out_path, int out_size, const char *file_type)
   out_path[strcspn(out_path, "\n")] = '\0';
   pclose(fp);
   return 0;
+  
+  #elif defined(__linux__)
+
+      char script[512];
+      snprintf(script, sizeof(script),
+     	   "zenity --file-selection --file-filter = '*.%s' 2>/dev/null "
+     	   "|| kdialog --getopenfilename . '*.%s' 2>/dev/null",
+     	   file_type, file_type);
+     
+      FILE *fp = popen(script, "r");
+      if(fp) {
+        if(fgets(out_path, out_size, fp) != NULL) {
+          out_path[strcspn(out_path, "\n")] = '\0';
+          pclose(fp);
+          return 0;
+        }
+        pclose(fp);
+      }
+     
+      ncurses_file_browser(out_path, out_size);
+      if(out_path[0] == '\0') return -1;
+      return 0;
+
+  #else
+      _ncurses_file_browser(out_path, out_size);
+      if(out_path[0] == '\0') return -1;
+      return 0;
+
+  #endif  
 }
 
 int rle_write_file(const char *output,

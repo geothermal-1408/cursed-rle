@@ -1,11 +1,6 @@
 #include <assert.h>
 #include <ctype.h>
-#include <ncurses.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "rle_img.h"
+#include "common.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -99,6 +94,8 @@ void handle_compress_screen(void)
   char input_path[512];
   char out_path[512];
 
+ pick_bmp:
+  input_path[0] = '\0';
   clear();
   mvprintw(2, 4, "COMPRESS IMAGE");
   mvprintw(4, 4, "Opening file picker...");
@@ -106,18 +103,24 @@ void handle_compress_screen(void)
   endwin();
 
   int picked = _open_file_picker(input_path, sizeof(input_path), "bmp");
+  //ncurses_file_browser(input_path, sizeof(input_path));
+  if(picked != 0 || input_path[0] == '\0') return;
+
+  clear();
   refresh();
   initscr();
   cbreak();
   noecho();
   keypad(stdscr, TRUE);
 
+  /*
   if(picked != 0) {
     mvprintw(7, 4, "No file selected");
     mvprintw(9, 4, "Press any key to return");
     getch();
     return;
   }
+  */
   mvprintw(6, 4, "Selected: %s", input_path);
   refresh();
   
@@ -126,7 +129,7 @@ void handle_compress_screen(void)
     mvprintw(8, 4, "Path : %s", input_path);
     mvprintw(10, 4, "press any key to return...");
     getch();
-    return;
+    goto pick_bmp;
   }
 
   if(!_is_valid_bmp(input_path)) {
@@ -134,7 +137,7 @@ void handle_compress_screen(void)
     mvprintw(8, 4, "Only uncompressed .bmp files are supported.");
     mvprintw(10, 4, "press any key to return...");
     getch();
-    return;
+    goto pick_bmp;
   }
   
   mvprintw(7, 4, "Processing... please wait.");
@@ -192,6 +195,8 @@ void handle_decompress_screen(void)
   char input_path[512];
   char out_path[512];
 
+ pick_bmp:
+  input_path[0] = '\0';
   clear();
   mvprintw(2, 4, "DECOMPRESS IMAGE");
   mvprintw(4, 4, "Opening file picker...");
@@ -199,28 +204,34 @@ void handle_decompress_screen(void)
   endwin();
 
   int picked = _open_file_picker(input_path, sizeof(input_path), "rle");
+  //ncurses_file_browser(input_path, sizeof(input_path));
+  if(picked != 0 ||  input_path[0] == '\0') return;
+
+  clear();
   refresh();
   initscr();
   cbreak();
   noecho();
   keypad(stdscr, TRUE);
 
+  /*
   if(picked != 0) {
     mvprintw(7, 4, "No file selected");
     mvprintw(9, 4, "Press any key to return");
     getch();
     return;
   }
+  */
+  
   mvprintw(6, 4, "Selected: %s", input_path);
   refresh();
- 
  
   if (!_file_exists(input_path)) {
     mvprintw(7, 4, "Error: file does not exist.");
     mvprintw(8, 4, "Path : %s", input_path);
     mvprintw(10, 4, "press any key to return...");
     getch();
-    return;
+    goto pick_bmp;
   }
 
   if (!strstr(input_path, ".rle")) {
@@ -228,7 +239,7 @@ void handle_decompress_screen(void)
     mvprintw(8, 4, "Only files compressed by this tool are supported.");
     mvprintw(10, 4, "press any key to return...");
     getch();
-    return;
+    goto pick_bmp;
   }
   
   mvprintw(7, 4, "Processing... please wait.");

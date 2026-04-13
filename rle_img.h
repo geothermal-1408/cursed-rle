@@ -29,4 +29,6 @@ int _is_valid_bmp(const char *path);
 
 int _open_file_picker(char *out_path, int out_size, const char *file_type);
 
+void _ncurses_file_browser(char *out_path, int out_size);
+
 #endif
