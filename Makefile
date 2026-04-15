@@ -23,11 +23,11 @@ gen_img: $(SRCS_GEN)
 
 rle: $(SRCS_RLE)
 	mkdir -p bin
-	$(CC) $(CFLAGS) -o bin/rle $(SRCS_RLE) -lcurses
+	$(CC) $(CFLAGS) -o bin/rle $(SRCS_RLE) -lcurses -lm
 
-test: test_simd.c rle_simd.c
+test: tests/test_simd.c src/rle_simd.c
 	mkdir -p bin
-	$(CC) $(CFLAGS) -o bin/test_simd rle_img.c test_simd.c rle_simd.c -lcurses
+	$(CC) $(CFLAGS) -o bin/test_simd src/rle_img.c tests/test_simd.c src/rle_simd.c -lcurses
 	./bin/test_simd
 
 bench_neon: tests/benchmark.c src/rle_simd.c
