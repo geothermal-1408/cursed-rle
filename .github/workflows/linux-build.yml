@@ -1,6 +1,6 @@
 name: Linux Build and Test
 
-# Trigger the workflow on pushes and pull requests to the main branch
+# Trigger the workflow on pushes and pull requests to the main branches
 on:
   push:
     branches: [ "main", "master" ]
@@ -8,6 +8,7 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
+  # Job 1: Standard x86_64 Runner (Tests Scalar Fallback)
   build-linux-x86:
     name: Ubuntu x86_64 (Scalar)
     runs-on: ubuntu-latest
@@ -17,18 +18,38 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Install Dependencies
-      # Update package lists and install clang and ncurses development files
       run: |
         sudo apt-get update
         sudo apt-get install -y clang libncurses-dev pkg-config
 
-    - name: Build Project (make all)
+    - name: Build Project
       run: make all
 
     - name: Run Tests
-      # Assuming your 'test' target compiles and runs the test binary
       run: make test
 
     - name: Run Scalar Benchmark
-      # Tests the fallback scalar logic since this is an x86 runner
       run: make bench_scalar
+
+  # Job 2: ARM64 Runner (Tests NEON SIMD)
+  build-linux-arm64:
+    name: Ubuntu ARM64 (NEON)
+    runs-on: ubuntu-24.04-arm 
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang libncurses-dev pkg-config
+
+    - name: Build Project
+      run: make all
+
+    - name: Run Tests
+      run: make test
+
+    - name: Run NEON Benchmark
+      run: make bench_neon
