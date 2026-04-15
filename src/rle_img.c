@@ -3,8 +3,8 @@
 #include <dirent.h>
 
 #include "rle_format.h"
-
 #include "common.h"
+#include "rle_simd.h"
 
 int _file_exists(const char *path)
 {
@@ -292,22 +292,14 @@ int rle_encode_binary(const unsigned char *input,
 
   while (i < pixel_count)
   {
-    // unsigned char cur = input[i];
-    int count = 1;
+    size_t pixeli = (size_t)i * (size_t)channels;
+    int count = rle_count_run_simd(&input[pixeli], pixel_count - i, 255, channels);
 
-    while (i + count < pixel_count &&
-           count < 255 &&
-           memcmp(&input[i * channels],
-                  &input[(i + count) * channels],
-                  channels) == 0)
-    {
-      count++;
-    }
     if (offset + 1 + channels > output_max)
       return -1;
 
     output[offset++] = (unsigned char)count;
-    memcpy(&output[offset], &input[i * channels], channels);
+    memcpy(&output[offset], &input[(size_t)i * (size_t)channels], channels);
     offset += channels;
     i += count;
   }
@@ -325,9 +317,7 @@ int rle_decode_binary(const unsigned char *input,
 
   while (i + 1 < input_len)
   {
-    int count = input[i++];
-
-    // unsigned char byte = input[i + 1];
+    int count = (int)input[i++];
 
     if (i + channels > input_len)
       return -1;
@@ -335,12 +325,11 @@ int rle_decode_binary(const unsigned char *input,
     if (offset + count * channels > output_max)
       return -1;
 
-    for (int j = 0; j < count; ++j)
-    {
-      memcpy(&output[offset], &input[i], channels);
-      offset += channels;
-    }
+    rle_fill_pixel_simd(&output[offset], &input[i], count, channels);
+    
+    offset += count * channels;
     i += channels;
   }
+  
   return offset;
 }

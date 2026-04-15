@@ -4,7 +4,7 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 
-#include "thirdparty/stb_image_write.h"
+#include "stb_image_write.h"
 
 int main(void) {
     int w = 16, h = 16, channels = 3;

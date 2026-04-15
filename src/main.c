@@ -5,8 +5,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 
-#include "thirdparty/stb_image.h"
-#include "thirdparty/stb_image_write.h"
+#include "stb_image.h"
+#include "stb_image_write.h"
 
 char *rle_encode(const char *str)
 {
@@ -293,7 +293,7 @@ void handle_decompress_screen(void)
   getch();
 }
 
-int main(int argc, char **argv)
+int main(void)
 {
   initscr();
   cbreak();
