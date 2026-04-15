@@ -10,11 +10,11 @@
     #if defined (__ARM_NEON) || defined (__ARM_NEON__)
         #define RLE_HAVE_NEON 1
     #else
-        #define RLE_HAVE_NEON 1
+	#define RLE_HAVE_NEON 0
     #endif
 #endif
 
-#ifdef RLE_HAVE_NEON
+#if RLE_HAVE_NEON
     #include <arm_neon.h>
 #endif /* RLE_HAVE_NEON */
 
