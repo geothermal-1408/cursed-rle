@@ -188,7 +188,7 @@ int _open_file_picker(char *out_path, int out_size, const char *file_type)
     pclose(fp);
   }
 
-  ncurses_file_browser(out_path, out_size);
+  _ncurses_file_browser(out_path, out_size);
   if (out_path[0] == '\0')
     return -1;
   return 0;
