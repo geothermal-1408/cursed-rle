@@ -4,3 +4,4 @@ progess.md
 bin/
 .DS_Store
 test_simd.c
+.vscode
