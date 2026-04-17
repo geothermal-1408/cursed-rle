@@ -1,10 +1,13 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <limits.h>
 
 #include "rle_format.h"
 #include "common.h"
 #include "rle_simd.h"
+
+#define RLE_MAX_FILE_BYTES (512L * 1024L * 1024L)
 
 int _file_exists(const char *path)
 {
@@ -238,7 +241,11 @@ int rle_read_file(const char *input,
   if (!f)
     return -1;
 
-  fread(hdr_out, sizeof(RLEheader), 1, f);
+  if (fread(hdr_out, sizeof(RLEheader), 1, f) != 1)
+  {
+    fclose(f);
+    return -2;
+  }
 
   if (hdr_out->magic[0] != RLE_MAGIC0 ||
       hdr_out->magic[1] != RLE_MAGIC1 ||
@@ -256,19 +263,47 @@ int rle_read_file(const char *input,
     return -3;
   }
 
-  fseek(f, 0, SEEK_END);
-  long file_size = ftell(f);
-  long data_size = file_size - sizeof(RLEheader);
-  fseek(f, sizeof(RLEheader), SEEK_SET);
+  if (fseek(f, 0, SEEK_END) != 0)
+  {
+    fclose(f);
+    return -5;
+  }
 
-  *data_out = malloc(data_size);
+  long file_size = ftell(f);
+  if (file_size < (long)sizeof(RLEheader))
+  {
+    fclose(f);
+    return -5;
+  }
+
+  long data_size = file_size - sizeof(RLEheader);
+  if (data_size <= 0 || data_size > RLE_MAX_FILE_BYTES || data_size > INT_MAX)
+  {
+    fclose(f);
+    return -5;
+  }
+
+  if (fseek(f, sizeof(RLEheader), SEEK_SET) != 0)
+  {
+    fclose(f);
+    return -5;
+  }
+
+  *data_out = malloc((size_t)data_size);
   if (!*data_out)
   {
     fclose(f);
     return -4;
   }
 
-  fread(*data_out, 1, data_size, f);
+  if ((long)fread(*data_out, 1, (size_t)data_size, f) != data_size)
+  {
+    free(*data_out);
+    *data_out = NULL;
+    fclose(f);
+    return -5;
+  }
+
   *data_len_out = (int)data_size;
 
   fclose(f);
@@ -286,23 +321,28 @@ int rle_encode_binary(const unsigned char *input,
                       int output_max,
                       int channels)
 {
-  int i = 0;
-  int offset = 0;
-  int pixel_count = input_len / channels;
+  if (channels <= 0)
+    return -1;
 
-  while (i < pixel_count)
+  int offset = 0;
+  int remaining = input_len / channels;
+  const unsigned char *src = input;
+
+  while (remaining > 0)
   {
-    size_t pixeli = (size_t)i * (size_t)channels;
-    int count = rle_count_run_simd(&input[pixeli], pixel_count - i, 255, channels);
+    int count = rle_count_run_simd(src, remaining, 255, channels);
 
     if (offset + 1 + channels > output_max)
       return -1;
 
     output[offset++] = (unsigned char)count;
-    memcpy(&output[offset], &input[(size_t)i * (size_t)channels], channels);
+    memcpy(&output[offset], src, (size_t)channels);
     offset += channels;
-    i += count;
+
+    src += (size_t)count * (size_t)channels;
+    remaining -= count;
   }
+
   return offset;
 }
 
@@ -312,24 +352,31 @@ int rle_decode_binary(const unsigned char *input,
                       int output_max,
                       int channels)
 {
+  if (channels <= 0)
+    return -1;
+
   int i = 0;
   int offset = 0;
 
   while (i + 1 < input_len)
   {
     int count = (int)input[i++];
+    if (count <= 0)
+      return -1;
 
     if (i + channels > input_len)
       return -1;
 
-    if (offset + count * channels > output_max)
+    int run_bytes = count * channels;
+
+    if (offset + run_bytes > output_max)
       return -1;
 
     rle_fill_pixel_simd(&output[offset], &input[i], count, channels);
-    
-    offset += count * channels;
+
+    offset += run_bytes;
     i += channels;
   }
-  
+
   return offset;
 }
