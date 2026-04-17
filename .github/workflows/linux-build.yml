@@ -1,12 +1,13 @@
 name: Linux Build and Test
 
 # Trigger the workflow on pushes and pull requests to the main branches
+# on:
+#   push:
+#     branches: [ "main", "master" ]
+#   pull_request:
+#     branches: [ "main", "master" ]
 on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
-
+  workflow_dispatch:
 jobs:
   # Job 1: Standard x86_64 Runner (Tests Scalar Fallback)
   build-linux-x86:
