@@ -8,16 +8,17 @@
 #define RLE_MAGIC2 'E'
 #define RLE_VERSION 1
 
-#pragma pack(1) //no need padding
-typedef struct {
+#pragma pack(1) // no need padding
+typedef struct
+{
   uint8_t magic[3];
   uint8_t version;
-  uint8_t org_height;
-  uint8_t org_width;
+  uint32_t org_height;
+  uint32_t org_width;
   uint8_t channels;
   uint32_t org_filesize;
-  
-}RLEheader;
+
+} RLEheader;
 #pragma pack()
 
 #endif
