@@ -3,6 +3,7 @@ CC ?= clang
 # Base compile/link flags
 CFLAGS ?= -O2 -Wall -Wextra
 CPPFLAGS += -I./include -I./thirdparty
+LDFLAGS ?=
 
 # Apple Silicon tuning
 ARCH := $(shell uname -m)
@@ -44,7 +45,7 @@ GEN_SRCS := src/gen_img.c
 VIEWER_SRCS := src/rle_sdl_viewer.c
 BENCH_SRCS := src/rle_img.c tests/benchmark.c src/rle_simd.c
 
-.PHONY: all clean dirs rle gen_img rle_viewer bench_neon bench_scalar
+.PHONY: all clean dirs rle gen_img rle_viewer bench_neon bench_scalar release portable
 
 all: dirs rle gen_img rle_viewer
 
@@ -70,3 +71,9 @@ bench_scalar: $(BENCH_SRCS) | dirs
 
 clean:
 	rm -rf $(BIN_DIR)
+
+release:
+	$(MAKE) CFLAGS="$(CFLAGS) -O3 -flto"
+
+portable:
+	$(MAKE) CFLAGS="-O3 -Wall -Wextra"

@@ -12,6 +12,25 @@
 #define DEFAULT_WINDOW_WIDTH 800
 #define DEFAULT_WINDOW_HEIGHT 600
 
+static void cleanup_viewer(FILE *file,
+                           char *io_buf,
+                           SDL_Texture *texture,
+                           SDL_Renderer *renderer,
+                           SDL_Window *window)
+{
+  if (texture)
+    SDL_DestroyTexture(texture);
+  if (renderer)
+    SDL_DestroyRenderer(renderer);
+  if (window)
+    SDL_DestroyWindow(window);
+  SDL_Quit();
+
+  if (file)
+    fclose(file);
+  free(io_buf);
+}
+
 /* Fast pixel fill; ARM64 path writes two pixels per 64-bit store. */
 static inline void fast_fill_pixels_arm64(uint32_t *restrict dest, uint32_t color, size_t count)
 {
@@ -51,6 +70,10 @@ static bool decode_rle_to_texture(FILE *file, SDL_Texture *texture, const RLEhea
 
   size_t total_pixels = (size_t)header->org_width * header->org_height;
   size_t pixels_written = 0;
+  size_t current_x = 0;
+  size_t current_y = 0;
+  uint8_t *base = (uint8_t *)pixels;
+  uint32_t *row_ptr = (uint32_t *)base;
 
   int chunk_size = 1 + header->channels;
   if (chunk_size > 5)
@@ -81,11 +104,6 @@ static bool decode_rle_to_texture(FILE *file, SDL_Texture *texture, const RLEhea
 
     while (safe_count > 0)
     {
-      size_t current_x = pixels_written % header->org_width;
-      size_t current_y = pixels_written / header->org_width;
-
-      uint32_t *row_ptr = (uint32_t *)((uint8_t *)pixels + (current_y * pitch)) + current_x;
-
       size_t pixels_left_in_row = header->org_width - current_x;
       size_t write_count = (safe_count < pixels_left_in_row) ? safe_count : pixels_left_in_row;
 
@@ -93,6 +111,15 @@ static bool decode_rle_to_texture(FILE *file, SDL_Texture *texture, const RLEhea
 
       safe_count -= write_count;
       pixels_written += write_count;
+      current_x += write_count;
+      row_ptr += write_count;
+
+      if (current_x == header->org_width && pixels_written < total_pixels)
+      {
+        current_x = 0;
+        current_y++;
+        row_ptr = (uint32_t *)(base + (current_y * (size_t)pitch));
+      }
     }
   }
 
@@ -125,36 +152,28 @@ int main(int argc, char *argv[])
   if (fread(&header, sizeof(RLEheader), 1, file) != 1)
   {
     rle_sdl_error("Failed to read header from %s.", argv[1]);
-    fclose(file);
-    if (io_buf)
-      free(io_buf);
+    cleanup_viewer(file, io_buf, NULL, NULL, NULL);
     return EXIT_FAILURE;
   }
 
   if (header.magic[0] != RLE_MAGIC0 || header.magic[1] != RLE_MAGIC1 || header.magic[2] != RLE_MAGIC2)
   {
     rle_sdl_error("Invalid magic number. Not a valid RLE file.");
-    fclose(file);
-    if (io_buf)
-      free(io_buf);
+    cleanup_viewer(file, io_buf, NULL, NULL, NULL);
     return EXIT_FAILURE;
   }
 
   if (header.org_width == 0 || header.org_height == 0)
   {
     rle_sdl_error("Invalid image dimensions in header: %dx%d", header.org_width, header.org_height);
-    fclose(file);
-    if (io_buf)
-      free(io_buf);
+    cleanup_viewer(file, io_buf, NULL, NULL, NULL);
     return EXIT_FAILURE;
   }
 
   if (!SDL_Init(SDL_INIT_VIDEO))
   {
     rle_sdl_error("SDL_Init failed: %s", SDL_GetError());
-    fclose(file);
-    if (io_buf)
-      free(io_buf);
+    cleanup_viewer(file, io_buf, NULL, NULL, NULL);
     return EXIT_FAILURE;
   }
 
@@ -168,10 +187,7 @@ int main(int argc, char *argv[])
   if (!window || !renderer)
   {
     rle_sdl_error("Window/Renderer creation failed: %s", SDL_GetError());
-    SDL_Quit();
-    fclose(file);
-    if (io_buf)
-      free(io_buf);
+    cleanup_viewer(file, io_buf, NULL, renderer, window);
     return EXIT_FAILURE;
   }
 
@@ -185,12 +201,7 @@ int main(int argc, char *argv[])
   if (!texture)
   {
     rle_sdl_error("Texture creation failed: %s", SDL_GetError());
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    fclose(file);
-    if (io_buf)
-      free(io_buf);
+    cleanup_viewer(file, io_buf, NULL, renderer, window);
     return EXIT_FAILURE;
   }
 
@@ -201,6 +212,9 @@ int main(int argc, char *argv[])
 
   bool running = true;
   SDL_Event event;
+  int win_w = 0;
+  int win_h = 0;
+  bool window_dirty = true;
 
   while (running)
   {
@@ -211,11 +225,17 @@ int main(int argc, char *argv[])
       {
         running = false;
       }
+      else if (event.type == SDL_EVENT_WINDOW_RESIZED)
+      {
+        window_dirty = true;
+      }
     }
 
-    int win_w = 0;
-    int win_h = 0;
-    SDL_GetWindowSize(window, &win_w, &win_h);
+    if (window_dirty)
+    {
+      SDL_GetWindowSize(window, &win_w, &win_h);
+      window_dirty = false;
+    }
 
     float scale_x = (float)win_w / (float)header.org_width;
     float scale_y = (float)win_h / (float)header.org_height;
@@ -242,14 +262,7 @@ int main(int argc, char *argv[])
     SDL_RenderPresent(renderer);
   }
 
-  SDL_DestroyTexture(texture);
-  SDL_DestroyRenderer(renderer);
-  SDL_DestroyWindow(window);
-  SDL_Quit();
-
-  fclose(file);
-  if (io_buf)
-    free(io_buf);
+  cleanup_viewer(file, io_buf, texture, renderer, window);
 
   return EXIT_SUCCESS;
 }
