@@ -122,7 +122,6 @@ pick_bmp:
   endwin();
 
   int picked = _open_file_picker(input_path, sizeof(input_path), "bmp");
-  // ncurses_file_browser(input_path, sizeof(input_path));
   if (picked != 0 || input_path[0] == '\0')
     return;
 
@@ -133,14 +132,6 @@ pick_bmp:
   noecho();
   keypad(stdscr, TRUE);
 
-  /*
-  if(picked != 0) {
-    mvprintw(7, 4, "No file selected");
-    mvprintw(9, 4, "Press any key to return");
-    getch();
-    return;
-  }
-  */
   mvprintw(6, 4, "Selected: %s", input_path);
   refresh();
 
@@ -260,7 +251,6 @@ pick_bmp:
   endwin();
 
   int picked = _open_file_picker(input_path, sizeof(input_path), "rle");
-  // ncurses_file_browser(input_path, sizeof(input_path));
   if (picked != 0 || input_path[0] == '\0')
     return;
 
@@ -270,15 +260,6 @@ pick_bmp:
   cbreak();
   noecho();
   keypad(stdscr, TRUE);
-
-  /*
-  if(picked != 0) {
-    mvprintw(7, 4, "No file selected");
-    mvprintw(9, 4, "Press any key to return");
-    getch();
-    return;
-  }
-  */
 
   mvprintw(6, 4, "Selected: %s", input_path);
   refresh();
@@ -369,6 +350,79 @@ pick_bmp:
   getch();
 }
 
+void handle_sdl_viewer(void)
+{
+  char input_path[512];
+  char cmd[1200];
+
+pick_rle:
+  input_path[0] = '\0';
+  clear();
+  mvprintw(2, 4, "VIEW COMPRESSED IMAGE");
+  mvprintw(4, 4, "Opening file picker...");
+  refresh();
+  endwin();
+
+  int picked = _open_file_picker(input_path, sizeof(input_path), "rle");
+  if (picked != 0 || input_path[0] == '\0')
+    return;
+
+  initscr();
+  cbreak();
+  noecho();
+  keypad(stdscr, TRUE);
+  curs_set(0);
+
+  if (!_file_exists(input_path))
+  {
+    mvprintw(7, 4, "Error: file does not exist.");
+    mvprintw(8, 4, "Path : %s", input_path);
+    mvprintw(10, 4, "press any key to return...");
+    getch();
+    goto pick_rle;
+  }
+
+  if (!strstr(input_path, ".rle"))
+  {
+    mvprintw(7, 4, "Error: file does not have .rle extension.");
+    mvprintw(8, 4, "Only compressed .rle files are supported.");
+    mvprintw(10, 4, "press any key to return...");
+    getch();
+    goto pick_rle;
+  }
+
+  if (!_file_exists("bin/rle_viewer"))
+  {
+    mvprintw(7, 4, "Error: viewer binary not found at bin/rle_viewer");
+    mvprintw(8, 4, "Build it with: make rle_viewer");
+    mvprintw(10, 4, "press any key to return...");
+    getch();
+    return;
+  }
+
+  int cmd_len = snprintf(cmd, sizeof(cmd), "./bin/rle_viewer \"%s\"", input_path);
+  int launch_res = -1;
+
+  if (cmd_len > 0 && cmd_len < (int)sizeof(cmd))
+  {
+    endwin();
+    launch_res = system(cmd);
+  }
+
+  initscr();
+  cbreak();
+  noecho();
+  keypad(stdscr, TRUE);
+  curs_set(0);
+
+  if (cmd_len <= 0 || cmd_len >= (int)sizeof(cmd) || launch_res != 0)
+  {
+    mvprintw(7, 4, "Error: failed to launch viewer.");
+    mvprintw(8, 4, "File : %s", input_path);
+    mvprintw(10, 4, "press any key to return...");
+    getch();
+  }
+}
 int main(void)
 {
   initscr();
@@ -377,18 +431,27 @@ int main(void)
   keypad(stdscr, TRUE);
   curs_set(0);
 
-  if (has_colors())
-  {
-    start_color();
-    use_default_colors();
-  }
+  const int MENU_ORANGE_256 = 208;
+  bool colors_enabled = false;
   int item_colors[] = {
       COLOR_YELLOW,
       COLOR_CYAN,
       COLOR_GREEN,
       COLOR_MAGENTA,
+      COLOR_YELLOW,
       COLOR_RED,
   };
+
+  if (has_colors())
+  {
+    start_color();
+    use_default_colors();
+    colors_enabled = true;
+
+    /* Use xterm-256 orange without rewriting terminal palette slots. */
+    if (COLORS > MENU_ORANGE_256)
+      item_colors[4] = MENU_ORANGE_256;
+  }
 
   int choice = 0;
   const char *choices[] = {
@@ -396,40 +459,62 @@ int main(void)
       "Decode ",
       "Compress Image",
       "Decompress Image",
+      "View Compressed Image",
       "Exit"};
   int n_choice = (sizeof(choices)) / sizeof(char *);
   int highlight = 0;
   int c;
 
-  for (int i = 0; i < n_choice; ++i)
+  for (int i = 0; colors_enabled && i < n_choice; ++i)
   {
     init_pair(10 + i, item_colors[i], -1);
   }
-  init_pair(1, COLOR_WHITE, -1);
-  init_pair(4, COLOR_BLACK, COLOR_WHITE);
+  if (colors_enabled)
+  {
+    init_pair(1, COLOR_WHITE, -1);
+    init_pair(4, COLOR_BLACK, COLOR_WHITE);
+  }
 
   while (1)
   {
     erase();
 
-    attron(COLOR_PAIR(1) | A_BOLD);
+    if (colors_enabled)
+      attron(COLOR_PAIR(1) | A_BOLD);
+    else
+      attron(A_BOLD);
     mvprintw(2, 4, "RLE Utility");
     mvprintw(3, 4, "==============================");
-    attroff(COLOR_PAIR(1) | A_BOLD);
+    if (colors_enabled)
+      attroff(COLOR_PAIR(1) | A_BOLD);
+    else
+      attroff(A_BOLD);
 
     for (int i = 0; i < n_choice; ++i)
     {
       if (i == highlight)
       {
-        attron(COLOR_PAIR(4) | A_BOLD);
+        if (colors_enabled)
+          attron(COLOR_PAIR(4) | A_BOLD);
+        else
+          attron(A_REVERSE | A_BOLD);
         mvprintw(5 + i, 6, "%s", choices[i]);
-        attroff(COLOR_PAIR(4) | A_BOLD);
+        if (colors_enabled)
+          attroff(COLOR_PAIR(4) | A_BOLD);
+        else
+          attroff(A_REVERSE | A_BOLD);
       }
       else
       {
-        attron(COLOR_PAIR(10 + i) | A_BOLD);
+        if (colors_enabled)
+          attron(COLOR_PAIR(10 + i) | A_BOLD);
+        else
+          attron(A_BOLD);
         mvprintw(5 + i, 6, "%s", choices[i]);
-        attroff(COLOR_PAIR(10 + i) | A_BOLD);
+        if (colors_enabled)
+          attroff(COLOR_PAIR(10 + i) | A_BOLD);
+        else
+          attroff(A_BOLD);
       }
     }
 
@@ -462,6 +547,8 @@ int main(void)
       else if (choice == 3)
         handle_decompress_screen();
       else if (choice == 4)
+        handle_sdl_viewer();
+      else if (choice == 5)
       {
         endwin();
         return 0;
